@@ -30,7 +30,7 @@ ShipCost Optimizer is a production-grade web application designed for small impo
 
 1. Clone this repository:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/jalalkouaki/shipcost-manager.git
    cd shipcost-optimizer
    ```
 
