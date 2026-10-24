@@ -26,8 +26,8 @@ export const ShippingProfilesForm: React.FC = () => {
 
   const addProfile = (type: 'lcl' | 'fcl') => {
     const newProfile: ShippingProfile = type === 'lcl' 
-      ? { id: Date.now().toString(), type: 'lcl', name: 'New LCL', fixedHandling: 0, variablePerUnit: 0 }
-      : { id: Date.now().toString(), type: 'fcl', name: 'New FCL', containerCost: 0, capacity: 1000 };
+      ? { id: Date.now().toString(), type: 'lcl', name: 'LCL', fixedHandling: 0, variablePerUnit: 0 }
+      : { id: Date.now().toString(), type: 'fcl', name: 'FCL', containerCost: 0, capacity: 0 };
     
     updateActiveScenario({
       ...activeScenario,
@@ -115,10 +115,10 @@ export const ShippingProfilesForm: React.FC = () => {
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Container Capacity (Units)</label>
                     <input
                       type="number"
-                      min="1"
+                      min="0"
                       step="1"
                       value={(profile as FCLProfile).capacity === 0 ? '' : (profile as FCLProfile).capacity}
-                      onChange={(e) => updateProfile(profile.id, { capacity: Math.max(1, parseInt(e.target.value) || 1) })}
+                      onChange={(e) => updateProfile(profile.id, { capacity: Math.max(0, parseInt(e.target.value) || 0) })}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>

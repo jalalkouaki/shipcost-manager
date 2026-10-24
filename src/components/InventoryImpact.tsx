@@ -5,12 +5,11 @@ import { Coins, PackageCheck, Banknote } from 'lucide-react';
 export const InventoryImpact: React.FC = () => {
   const { activeScenario, results, isAnalysisFresh, settings } = useScenario();
 
-  if (!activeScenario || !isAnalysisFresh || Object.keys(results).length === 0) return null;
-
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val).replace('$', settings.currency);
 
   const insight = useMemo(() => {
+    if (!activeScenario || !results) return '';
     const sorted = Object.values(results).sort((a, b) => a.cashTiedUp - b.cashTiedUp);
     if (sorted.length >= 2) {
       const min = sorted[0];
@@ -24,6 +23,8 @@ export const InventoryImpact: React.FC = () => {
     }
     return 'Inventory impact is similar across profiles.';
   }, [results, activeScenario, settings.currency]);
+
+  if (!activeScenario || !isAnalysisFresh || Object.keys(results).length === 0) return null;
 
   return (
     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mt-8">

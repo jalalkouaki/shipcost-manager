@@ -7,9 +7,8 @@ const colors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
 export const CostCurveChart: React.FC = () => {
   const { activeScenario, results } = useScenario();
 
-  if (!activeScenario || Object.keys(results).length === 0) return null;
-
   const data = useMemo(() => {
+    if (!activeScenario || !results) return [];
     const allQs = new Set<number>();
     activeScenario.profiles.forEach(p => {
       const curve = results[p.id]?.costCurve || [];
@@ -30,6 +29,8 @@ export const CostCurveChart: React.FC = () => {
       return dataPoint;
     });
   }, [activeScenario, results]);
+
+  if (!activeScenario || Object.keys(results).length === 0) return null;
 
   return (
     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors mt-6 h-[450px]">

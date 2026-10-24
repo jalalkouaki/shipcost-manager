@@ -8,33 +8,18 @@ const defaultSettings: AppSettings = {
 };
 
 const defaultProduct: ProductBase = {
-  unitCost: 50,
+  unitCost: 0,
   dutyRate: 0,
-  annualDemand: 10000,
-  holdingRate: 20,
-  safetyStock: 500,
+  annualDemand: 0,
+  holdingRate: 0,
+  safetyStock: 0,
 };
 
-const defaultProfiles: ShippingProfile[] = [
-  {
-    id: '1',
-    type: 'lcl',
-    name: 'Standard LCL',
-    fixedHandling: 300,
-    variablePerUnit: 2,
-  },
-  {
-    id: '2',
-    type: 'fcl',
-    name: '20ft FCL',
-    containerCost: 4000,
-    capacity: 3000,
-  }
-];
+const defaultProfiles: ShippingProfile[] = [];
 
 const defaultScenario: Scenario = {
   id: 'default',
-  name: 'Base Scenario',
+  name: 'New Scenario',
   product: defaultProduct,
   profiles: defaultProfiles,
 };
@@ -86,15 +71,19 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If stored scenarios only contain the legacy dummy template, reset to clean state
+          const hasLegacyDummy = parsed.length === 1 && (
+            (parsed[0].product?.unitCost === 50 && parsed[0].product?.annualDemand === 10000) ||
+            parsed[0].profiles?.some((p: ShippingProfile) => p.name === 'Standard LCL' || p.name === '20ft FCL')
+          );
+          if (!hasLegacyDummy) return parsed;
+        }
       } catch (e) {
         console.error('Failed to load scenarios', e);
       }
     }
-    return [{
-      ...defaultScenario,
-      product: { ...defaultScenario.product, holdingRate: settings.defaultHoldingRate }
-    }];
+    return [defaultScenario];
   });
 
   const [activeScenarioId, setActiveScenarioId] = useState<string>(scenarios[0]?.id || 'default');

@@ -7,7 +7,42 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 9000;
 
-app.use(cors());
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
+// Restrict CORS to localhost/local dev origins and direct navigation
+const allowedOrigins = new Set([
+  'http://localhost:9000',
+  'http://127.0.0.1:9000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+]);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Blocked by CORS policy'));
+    }
+  }
+}));
+
 app.use(express.json());
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -18,7 +53,7 @@ let config = { websiteTitle: 'ShipCost Optimizer' };
 if (fs.existsSync(CONFIG_PATH)) {
   try {
     config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  } catch (e) {
+  } catch (_e) {
     console.error('Error reading config.json, using defaults.');
   }
 } else {
@@ -62,13 +97,27 @@ function stopServer(callback) {
   const pid = childProcess.pid;
   childProcess = null; // Mark as stopped immediately
   
-  // Windows specific kill for tree
-  exec(`taskkill /pid ${pid} /T /F`, (err) => {
-    if (err) {
-      console.error('Failed to kill process tree:', err);
+  if (Number.isInteger(pid)) {
+    if (process.platform === 'win32') {
+      exec(`taskkill /pid ${pid} /T /F`, (err) => {
+        if (err) {
+          console.error('Failed to kill process tree:', err);
+        }
+        if (callback) callback();
+      });
+    } else {
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch (_e) {
+        try {
+          process.kill(pid, 'SIGTERM');
+        } catch (_err) {}
+      }
+      if (callback) callback();
     }
+  } else {
     if (callback) callback();
-  });
+  }
 }
 
 app.get('/status', (req, res) => {
@@ -101,14 +150,21 @@ app.post('/stop', (req, res) => {
 
 app.post('/set-title', (req, res) => {
   const { title } = req.body;
-  if (!title) return res.status(400).json({ error: 'Title is required' });
+  if (!title || typeof title !== 'string') {
+    return res.status(400).json({ error: 'Title is required and must be a string' });
+  }
   
-  config.websiteTitle = title;
+  const cleanTitle = title.trim().replace(/[\r\n\t]/g, '').slice(0, 100);
+  if (!cleanTitle) {
+    return res.status(400).json({ error: 'Title cannot be empty' });
+  }
+  
+  config.websiteTitle = cleanTitle;
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
   
   if (childProcess) {
     stopServer(() => {
-      startServer(title);
+      startServer(cleanTitle);
       lastMessage = 'Server restarted with new title.';
       res.json({ success: true, message: 'Title updated and server restarted' });
     });
@@ -251,7 +307,7 @@ app.get('/', (req, res) => {
     <div class="section">
       <label>Website Title (VITE_APP_TITLE)</label>
       <div class="input-group">
-        <input type="text" id="titleInput" value="${config.websiteTitle}">
+        <input type="text" id="titleInput" value="${escapeHtml(config.websiteTitle)}">
         <button class="btn-primary" onclick="setTitle()">Save</button>
       </div>
       <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">

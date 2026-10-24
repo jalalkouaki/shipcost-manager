@@ -68,7 +68,6 @@ export const ProductForm: React.FC = () => {
             step="0.1"
             value={product.dutyRate === 0 ? '' : product.dutyRate}
             onChange={handleChange}
-            placeholder="0"
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-transparent text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
