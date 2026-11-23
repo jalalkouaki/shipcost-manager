@@ -1,6 +1,6 @@
 import React from 'react';
 import { useScenario } from '../context/ScenarioContext';
-import { Play, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const RunAnalysisButton: React.FC = () => {
   const { activeScenario, isAnalysisFresh, runAnalysis } = useScenario();
@@ -8,7 +8,7 @@ export const RunAnalysisButton: React.FC = () => {
   if (!activeScenario) return null;
 
   const { product, profiles } = activeScenario;
-  
+
   // Validation logic
   let isValid = true;
   let invalidReason = '';
@@ -28,32 +28,42 @@ export const RunAnalysisButton: React.FC = () => {
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors mt-6 flex flex-col items-center justify-center relative">
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors mt-6 flex flex-col items-center justify-center relative">
       <button
         onClick={runAnalysis}
-        disabled={!isValid || isAnalysisFresh}
-        className={`w-full flex items-center justify-center gap-2 py-3 px-6 rounded-lg font-bold text-white transition-all shadow-md
-          ${(!isValid || isAnalysisFresh) 
-            ? 'bg-slate-400 dark:bg-slate-600 cursor-not-allowed opacity-80 shadow-none' 
-            : 'bg-brand-500 hover:bg-brand-600 hover:-translate-y-0.5 active:translate-y-0 shadow-brand-500/25 cursor-pointer'
-          }
-        `}
+        disabled={!isValid}
+        className={`w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+          !isValid
+            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-800 shadow-none'
+            : isAnalysisFresh
+            ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+            : 'bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-700 hover:to-blue-700 text-white shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 active:translate-y-0'
+        }`}
       >
-        {isAnalysisFresh ? <CheckCircle2 size={20} /> : <Play size={20} className={!isValid ? 'opacity-50' : ''} />}
-        {isAnalysisFresh ? 'Analysis Complete' : 'Run Analysis'}
+        {isAnalysisFresh ? (
+          <>
+            <CheckCircle2 size={18} className="text-emerald-500" />
+            <span>Analysis Up to Date (Re-run)</span>
+          </>
+        ) : (
+          <>
+            <Play size={18} fill="currentColor" />
+            <span>Run EOQ Optimization</span>
+          </>
+        )}
       </button>
 
       {!isValid && (
-        <div className="mt-3 flex items-center justify-center gap-1.5 text-red-500 dark:text-red-400 text-sm font-medium">
-          <AlertCircle size={16} />
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-red-500 dark:text-red-400 text-xs font-semibold">
+          <AlertCircle size={15} />
           {invalidReason}
         </div>
       )}
-      
+
       {isValid && !isAnalysisFresh && (
-        <div className="mt-3 flex items-center justify-center gap-1.5 text-brand-600 dark:text-indigo-400 text-sm font-medium animate-pulse">
-          <Play size={16} className="rotate-90" />
-          Ready to analyze
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-brand-600 dark:text-brand-400 text-xs font-semibold">
+          <RefreshCw size={13} className="animate-spin" />
+          Parameters changed &bull; Ready to recalculate
         </div>
       )}
     </div>

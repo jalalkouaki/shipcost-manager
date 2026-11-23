@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceDot } from 'recharts';
 import { useScenario } from '../../context/ScenarioContext';
+import { LineChart as LineChartIcon } from 'lucide-react';
+import { formatCurrency, formatCompactCurrency } from '../../utils/format';
 
-const colors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+const EXECUTIVE_PALETTE = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#db2777'];
 
 export const CostCurveChart: React.FC = () => {
-  const { activeScenario, results } = useScenario();
+  const { activeScenario, results, settings } = useScenario();
 
   const data = useMemo(() => {
     if (!activeScenario || !results) return [];
@@ -16,7 +18,7 @@ export const CostCurveChart: React.FC = () => {
     });
 
     const sortedQs = Array.from(allQs).sort((a, b) => a - b);
-    
+
     return sortedQs.map(q => {
       const dataPoint: any = { q };
       activeScenario.profiles.forEach(p => {
@@ -32,69 +34,94 @@ export const CostCurveChart: React.FC = () => {
 
   if (!activeScenario || Object.keys(results).length === 0) return null;
 
+  const currencySymbol = settings?.currency || 'MAD';
+
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors mt-6 h-[450px]">
-      <h3 className="text-lg font-semibold mb-6 text-slate-900 dark:text-white">Total Cost Curves (Total Cost vs Order Quantity)</h3>
-      <div className="h-[350px] w-full">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors mt-6 h-[420px] flex flex-col justify-between">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+            <LineChartIcon size={18} />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Total Cost Curves (EOQ Convexity)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Total annual expenditure vs. order quantity Q (minimum marks EOQ)
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="h-[310px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
             margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#64748b" opacity={0.2} vertical={false} />
-            <XAxis 
-              dataKey="q" 
-              stroke="#94a3b8" 
-              tick={{ fill: '#94a3b8' }} 
-              axisLine={{ stroke: '#64748b', opacity: 0.2 }} 
-              tickLine={false} 
+            <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.15} vertical={false} />
+            <XAxis
+              dataKey="q"
+              stroke="#64748b"
+              tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
+              axisLine={{ stroke: '#cbd5e1', opacity: 0.4 }}
+              tickLine={false}
               type="number"
               domain={['dataMin', 'dataMax']}
-              tickFormatter={(val) => val.toLocaleString()}
-              label={{ value: 'Order Quantity (Q)', position: 'insideBottom', offset: -10, fill: '#94a3b8' }}
+              tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val.toLocaleString()}
+              label={{ value: 'Order Quantity (Q)', position: 'insideBottom', offset: -10, fill: '#64748b', fontSize: 11 }}
             />
-            <YAxis 
-              stroke="#94a3b8" 
-              tick={{ fill: '#94a3b8' }} 
-              tickFormatter={(value) => `$${value.toLocaleString()}`} 
-              axisLine={false} 
-              tickLine={false} 
-              domain={['auto', 'auto']}
+            <YAxis
+              stroke="#64748b"
+              tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
+              tickFormatter={(value) => formatCompactCurrency(value, currencySymbol)}
+              axisLine={false}
+              tickLine={false}
             />
-            <Tooltip 
-              labelFormatter={(label) => `Order Quantity: ${Number(label).toLocaleString()}`}
-              formatter={(value: any, name: any) => [`$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc' }}
+            <Tooltip
+              formatter={(value: any) => [
+                formatCurrency(Number(value), currencySymbol),
+                undefined
+              ]}
+              labelFormatter={(label) => `Order Size: ${Number(label).toLocaleString()} units`}
+              contentStyle={{
+                backgroundColor: '#0f172a',
+                border: '1px solid #1e293b',
+                borderRadius: '10px',
+                color: '#f8fafc',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+                fontSize: '12px'
+              }}
               itemStyle={{ color: '#f8fafc' }}
             />
-            <Legend wrapperStyle={{ paddingTop: '20px' }} />
-            
-            {activeScenario.profiles.map((p, idx) => (
-              <Line 
-                key={p.id}
-                type="monotone" 
-                dataKey={`${p.name}`} 
-                stroke={colors[idx % colors.length]} 
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 6, strokeWidth: 0 }}
-                connectNulls={false}
-              />
-            ))}
-            
+            <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: 500 }} />
+
             {activeScenario.profiles.map((p, idx) => {
               const res = results[p.id];
-              if (!res) return null;
+              const color = EXECUTIVE_PALETTE[idx % EXECUTIVE_PALETTE.length];
+
               return (
-                <ReferenceDot 
-                  key={`ref-${p.id}`}
-                  x={res.optimalQ} 
-                  y={res.minTotalCost} 
-                  r={6} 
-                  fill={colors[idx % colors.length]} 
-                  stroke="#fff" 
-                  strokeWidth={2} 
-                />
+                <React.Fragment key={p.id}>
+                  <Line
+                    type="monotone"
+                    dataKey={p.name}
+                    stroke={color}
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: '#ffffff' }}
+                  />
+                  {res && (
+                    <ReferenceDot
+                      x={res.optimalQ}
+                      y={res.minTotalCost}
+                      r={6}
+                      fill={color}
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                    />
+                  )}
+                </React.Fragment>
               );
             })}
           </LineChart>

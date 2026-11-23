@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import type { Scenario, ProductBase, ShippingProfile, OptimizationResult, AppSettings } from '../types';
 import { findOptimalQ } from '../utils/calculations';
+import { decodeScenarioFromHash, generateScenarioPermalink } from '../utils/permalink';
 
 const defaultSettings: AppSettings = {
-  currency: '$',
+  currency: 'MAD',
   defaultHoldingRate: 20,
 };
 
@@ -13,6 +14,9 @@ const defaultProduct: ProductBase = {
   annualDemand: 0,
   holdingRate: 0,
   safetyStock: 0,
+  weightKg: 2.0,
+  cbm: 0.04,
+  priceBreaks: [],
 };
 
 const defaultProfiles: ShippingProfile[] = [];
@@ -22,6 +26,8 @@ const defaultScenario: Scenario = {
   name: 'New Scenario',
   product: defaultProduct,
   profiles: defaultProfiles,
+  secondarySkus: [],
+  incotermQuotes: [],
 };
 
 interface ScenarioContextType {
@@ -31,10 +37,10 @@ interface ScenarioContextType {
   results: Record<string, OptimizationResult>;
   demandMultiplier: number;
   setDemandMultiplier: (val: number) => void;
-  
+
   settings: AppSettings;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
-  
+
   isAnalysisFresh: boolean;
   runAnalysis: () => void;
 
@@ -43,6 +49,10 @@ interface ScenarioContextType {
   deleteScenario: (id: string) => void;
   setActiveScenarioId: (id: string) => void;
   renameActiveScenario: (name: string) => void;
+
+  // Permalink sharing
+  shareActiveScenario: () => Promise<string>;
+  importScenario: (sc: Scenario) => void;
 }
 
 const ScenarioContext = createContext<ScenarioContextType | undefined>(undefined);
@@ -58,7 +68,11 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saved = localStorage.getItem('shipcost-settings');
     if (saved) {
       try {
-        return { ...defaultSettings, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        if (!parsed.currency || parsed.currency === '$') {
+          parsed.currency = 'MAD';
+        }
+        return { ...defaultSettings, ...parsed };
       } catch (e) {
         console.error('Failed to load settings', e);
       }
@@ -67,12 +81,21 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [scenarios, setScenarios] = useState<Scenario[]>(() => {
+    // 1. Check if URL hash has a shared scenario
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const decoded = decodeScenarioFromHash(window.location.hash);
+      if (decoded) {
+        decoded.id = `shared_${Date.now()}`;
+        return [decoded];
+      }
+    }
+
+    // 2. Otherwise load saved scenarios from localStorage
     const saved = localStorage.getItem('shipcost-scenarios');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // If stored scenarios only contain the legacy dummy template, reset to clean state
           const hasLegacyDummy = parsed.length === 1 && (
             (parsed[0].product?.unitCost === 50 && parsed[0].product?.annualDemand === 10000) ||
             parsed[0].profiles?.some((p: ShippingProfile) => p.name === 'Standard LCL' || p.name === '20ft FCL')
@@ -117,9 +140,9 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const results = useMemo(() => {
     const res: Record<string, OptimizationResult> = {};
     if (!activeScenario) return res;
-    
+
     const adjustedDemand = Math.round(activeScenario.product.annualDemand * demandMultiplier);
-    
+
     for (const profile of activeScenario.profiles) {
       res[profile.id] = findOptimalQ(profile, activeScenario.product, adjustedDemand);
     }
@@ -140,7 +163,12 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: Date.now().toString(),
       name,
       product: { ...activeScenario.product, holdingRate: settings.defaultHoldingRate },
-      profiles: activeScenario.profiles.map(p => ({ ...p, id: Date.now().toString() + Math.random().toString().slice(2,5) }))
+      profiles: activeScenario.profiles.map(p => ({
+        ...p,
+        id: Date.now().toString() + Math.random().toString().slice(2, 5)
+      })),
+      secondarySkus: activeScenario.secondarySkus || [],
+      incotermQuotes: activeScenario.incotermQuotes || []
     };
     setScenarios(prev => [...prev, newScenario]);
     setActiveScenarioId(newScenario.id);
@@ -148,12 +176,12 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [activeScenario, settings.defaultHoldingRate]);
 
   const updateActiveScenario = useCallback((updated: Scenario) => {
-    setScenarios(prev => prev.map(s => s.id === updated.id ? updated : s));
+    setScenarios(prev => prev.map(s => (s.id === updated.id ? updated : s)));
     setIsAnalysisFresh(false);
   }, []);
 
   const renameActiveScenario = useCallback((name: string) => {
-    setScenarios(prev => prev.map(s => s.id === activeScenarioId ? { ...s, name } : s));
+    setScenarios(prev => prev.map(s => (s.id === activeScenarioId ? { ...s, name } : s)));
   }, [activeScenarioId]);
 
   const deleteScenario = useCallback((id: string) => {
@@ -168,30 +196,53 @@ export const ScenarioProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsAnalysisFresh(false);
     }
   }, [scenarios, activeScenarioId]);
-  
+
   const handleSetActiveScenarioId = useCallback((id: string) => {
     setActiveScenarioId(id);
     setIsAnalysisFresh(false);
   }, []);
 
+  const shareActiveScenario = useCallback(async (): Promise<string> => {
+    if (!activeScenario) return '';
+    const permalink = generateScenarioPermalink(activeScenario);
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(permalink);
+    }
+    return permalink;
+  }, [activeScenario]);
+
+  const importScenario = useCallback((sc: Scenario) => {
+    const imported: Scenario = {
+      ...sc,
+      id: `imported_${Date.now()}`
+    };
+    setScenarios(prev => [...prev, imported]);
+    setActiveScenarioId(imported.id);
+    setIsAnalysisFresh(true);
+  }, []);
+
   return (
-    <ScenarioContext.Provider value={{
-      scenarios,
-      activeScenarioId,
-      activeScenario,
-      results,
-      demandMultiplier,
-      setDemandMultiplier,
-      settings,
-      updateSettings,
-      isAnalysisFresh,
-      runAnalysis,
-      createScenario,
-      updateActiveScenario,
-      deleteScenario,
-      setActiveScenarioId: handleSetActiveScenarioId,
-      renameActiveScenario
-    }}>
+    <ScenarioContext.Provider
+      value={{
+        scenarios,
+        activeScenarioId,
+        activeScenario,
+        results,
+        demandMultiplier,
+        setDemandMultiplier,
+        settings,
+        updateSettings,
+        isAnalysisFresh,
+        runAnalysis,
+        createScenario,
+        updateActiveScenario,
+        deleteScenario,
+        setActiveScenarioId: handleSetActiveScenarioId,
+        renameActiveScenario,
+        shareActiveScenario,
+        importScenario
+      }}
+    >
       {children}
     </ScenarioContext.Provider>
   );

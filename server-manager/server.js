@@ -66,7 +66,19 @@ let lastMessage = '';
 function startServer(title) {
   if (childProcess) return false;
   
-  const env = { ...process.env, VITE_APP_TITLE: title || config.websiteTitle };
+  const home = process.env.HOME || '';
+  const extraPaths = [
+    path.join(home, '.nodejs', 'bin'),
+    path.join(home, '.local', 'bin'),
+    '/usr/local/bin'
+  ].join(path.delimiter);
+  const fullPath = `${extraPaths}${path.delimiter}${process.env.PATH || ''}`;
+
+  const env = { 
+    ...process.env, 
+    PATH: fullPath,
+    VITE_APP_TITLE: title || config.websiteTitle 
+  };
   
   // Windows compatibility: use shell: true for npm
   childProcess = spawn('npm', ['run', 'dev'], { 
